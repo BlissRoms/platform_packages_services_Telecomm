@@ -29,7 +29,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
-import android.database.ContentObserver;
 import android.hardware.camera2.CameraManager;
 import android.media.AudioAttributes;
 import android.media.AudioManager;
@@ -230,9 +229,6 @@ public class Ringer {
         0,
     };
 
-    private SettingsObserver mSettingObserver;
-    private final Handler mH = new Handler();
-
     private static final long[] CALL_CONNECTED_VIBRATION_PATTERN = {
             0, // No delay before starting
             1000, // How long to vibrate
@@ -388,14 +384,6 @@ public class Ringer {
         mCallConnectedIndicatorSettings = callConnectedIndicator;
         mAsyncTaskExecutor = asyncTaskExecutor;
         mCrsAudioController = crsAudioController;
-
-        mSettingObserver = new SettingsObserver(mH);
-        mContext.getContentResolver().registerContentObserver(
-            Settings.System.getUriFor(Settings.System.RINGTONE_VIBRATION_PATTERN),
-            true, mSettingObserver, UserHandle.USER_CURRENT);
-        mContext.getContentResolver().registerContentObserver(
-            Settings.System.getUriFor("custom_ringtone_vibration_pattern"),
-            true, mSettingObserver, -2);
     }
 
     public void shutdownExecutor() {
@@ -683,6 +671,7 @@ public class Ringer {
                         return;
                     }
                     final VibrationEffect vibrationEffect = mDefaultVibrationEffect;
+                    updateVibrationPattern();
 
                     boolean isUsingAudioCoupledHaptics =
                             !finalHapticChannelsMuted && ringtone != null
@@ -1243,17 +1232,6 @@ public class Ringer {
                     e.printStackTrace();
                 }
             }
-        }
-    }
-
-    private final class SettingsObserver extends ContentObserver {
-        public SettingsObserver(Handler handler) {
-            super(handler);
-        }
-
-        @Override
-        public void onChange(boolean SelfChange) {
-            updateVibrationPattern();
         }
     }
 
