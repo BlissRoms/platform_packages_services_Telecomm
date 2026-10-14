@@ -31,10 +31,7 @@ import android.provider.Settings;
 
 import android.telecom.Log;
 import android.telecom.PhoneAccountHandle;
-import android.telephony.SubscriptionManager;
 import android.text.TextUtils;
-
-import java.lang.reflect.Method;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.telecom.flags.FeatureFlags;
@@ -95,12 +92,7 @@ public class RingtoneFactory {
         if (ringtone == null) {
             // Contact didn't specify ringtone or custom Ringtone creation failed. Get default
             // ringtone for user or profile.
-            int subId = mCallsManager.getPhoneAccountRegistrar()
-                    .getSubscriptionIdForPhoneAccount(incomingCall.getTargetPhoneAccount());
-            int phoneId = getPhoneId(subId);
-            Context contextToUse = hasDefaultRingtoneForUserBySlot(userContext, phoneId)
-                    ? userContext : mContext;
-
+            Context contextToUse = hasDefaultRingtoneForUser(userContext) ? userContext : mContext;
             UserManager um = contextToUse.getSystemService(UserManager.class);
             boolean isUserUnlocked = um.isUserUnlocked(contextToUse.getUser());
             final PhoneAccountHandle accountHandle = incomingCall.getTargetPhoneAccount();
@@ -110,8 +102,8 @@ public class RingtoneFactory {
                     defaultRingtoneUri = RingtoneManager.getRingtoneUriForPhoneAccountHandle(
                             contextToUse, accountHandle);
                 } else {
-                    defaultRingtoneUri = getActualDefaultRingtoneUriBySlot(
-                            contextToUse, RingtoneManager.TYPE_RINGTONE, phoneId);
+                    defaultRingtoneUri = RingtoneManager.getActualDefaultRingtoneUri(contextToUse,
+                            RingtoneManager.TYPE_RINGTONE);
                 }
                 if (defaultRingtoneUri == null) {
                     Log.i(this, "getRingtone: defaultRingtoneUri for user is null.");
@@ -132,8 +124,7 @@ public class RingtoneFactory {
                             .build()
                             : Settings.System.DEFAULT_RINGTONE_URI;
                 } else {
-                    defaultRingtoneUri = phoneId == 1 ? Settings.System.getUriFor("ringtone2")
-                            : Settings.System.DEFAULT_RINGTONE_URI;
+                    defaultRingtoneUri = Settings.System.DEFAULT_RINGTONE_URI;
                     if (defaultRingtoneUri == null) {
                         Log.i(this, "getRingtone: Settings.System.DEFAULT_RINGTONE_URI is null.");
                     }
@@ -221,43 +212,17 @@ public class RingtoneFactory {
         return null;
     }
 
-    private boolean hasDefaultRingtoneForUserBySlot(Context userContext, int phoneId) {
+    private boolean hasDefaultRingtoneForUser(Context userContext) {
         if(userContext == null) {
             return false;
         }
-        String ringtoneSetting = phoneId == 1 ? "ringtone2"
-                : Settings.System.RINGTONE;
         return !TextUtils.isEmpty(Settings.System.getString(userContext.getContentResolver(),
-                ringtoneSetting));
+                Settings.System.RINGTONE));
     }
 
     private boolean isWorkContact(Call incomingCall) {
         CallerInfo contactCallerInfo = incomingCall.getCallerInfo();
         return (contactCallerInfo != null) &&
                 (contactCallerInfo.userType == CallerInfo.USER_TYPE_WORK);
-    }
-
-    private static int getPhoneId(int subId) {
-        try {
-            Method method = SubscriptionManager.class.getMethod("getPhoneId", int.class);
-            return (int) method.invoke(null, subId);
-        } catch (Throwable t) {
-            try {
-                Method method = SubscriptionManager.class.getMethod("getSlotIndex", int.class);
-                return (int) method.invoke(null, subId);
-            } catch (Throwable t2) {
-                return 0;
-            }
-        }
-    }
-
-    private static Uri getActualDefaultRingtoneUriBySlot(Context context, int type, int slot) {
-        try {
-            Method method = RingtoneManager.class.getMethod("getActualDefaultRingtoneUriBySlot",
-                    Context.class, int.class, int.class);
-            return (Uri) method.invoke(null, context, type, slot);
-        } catch (Throwable t) {
-            return RingtoneManager.getActualDefaultRingtoneUri(context, type);
-        }
     }
 }
